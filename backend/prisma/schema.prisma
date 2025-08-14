@@ -1,0 +1,324 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User Management
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password      String
+  firstName     String
+  lastName      String
+  phone         String?
+  role          UserRole @default(TENANT)
+  isActive      Boolean  @default(true)
+  emailVerified Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  properties    Property[]    @relation("PropertyOwner")
+  tenantLeases  Lease[]       @relation("TenantLease")
+  maintenanceRequests MaintenanceRequest[] @relation("TenantMaintenance")
+  assignedJobs  MaintenanceRequest[] @relation("AssignedVendor")
+  payments      Payment[]
+  documents     Document[]
+  messages      Message[]      @relation("Sender")
+  receivedMessages Message[]   @relation("Receiver")
+
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  HOMEOWNER
+  TENANT
+  VENDOR
+}
+
+// Property Management
+model Property {
+  id          String   @id @default(cuid())
+  name        String
+  address     String
+  city        String
+  state       String
+  zipCode     String
+  country     String
+  propertyType PropertyType
+  totalUnits  Int
+  availableUnits Int
+  monthlyRent Decimal  @db.Decimal(10, 2)
+  securityDeposit Decimal @db.Decimal(10, 2)
+  amenities   String[]
+  description String?
+  images      String[]
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  ownerId     String
+  owner       User     @relation("PropertyOwner", fields: [ownerId], references: [id])
+  units       Unit[]
+  leases      Lease[]
+  maintenanceRequests MaintenanceRequest[]
+  documents   Document[]
+
+  @@map("properties")
+}
+
+enum PropertyType {
+  APARTMENT
+  HOUSE
+  CONDO
+  TOWNHOUSE
+  COMMERCIAL
+  LAND
+}
+
+// Unit Management
+model Unit {
+  id          String   @id @default(cuid())
+  unitNumber  String
+  floor       Int?
+  bedrooms    Int
+  bathrooms   Int
+  squareFootage Int?
+  monthlyRent Decimal  @db.Decimal(10, 2)
+  securityDeposit Decimal @db.Decimal(10, 2)
+  isOccupied  Boolean  @default(false)
+  isAvailable Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  propertyId  String
+  property    Property @relation(fields: [propertyId], references: [id])
+  leases      Lease[]
+  maintenanceRequests MaintenanceRequest[]
+
+  @@map("units")
+}
+
+// Lease Management
+model Lease {
+  id              String   @id @default(cuid())
+  startDate       DateTime
+  endDate         DateTime
+  monthlyRent     Decimal  @db.Decimal(10, 2)
+  securityDeposit Decimal  @db.Decimal(10, 2)
+  status          LeaseStatus @default(PENDING)
+  terms           String?
+  isActive        Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  tenantId        String
+  tenant          User     @relation("TenantLease", fields: [tenantId], references: [id])
+  unitId          String
+  unit            Unit     @relation(fields: [unitId], references: [id])
+  propertyId      String
+  property        Property @relation(fields: [propertyId], references: [id])
+  payments        Payment[]
+  documents       Document[]
+
+  @@map("leases")
+}
+
+enum LeaseStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  TERMINATED
+  RENEWED
+}
+
+// Maintenance Management
+model MaintenanceRequest {
+  id              String   @id @default(cuid())
+  title           String
+  description     String
+  priority        Priority @default(MEDIUM)
+  status          MaintenanceStatus @default(PENDING)
+  category        MaintenanceCategory
+  images          String[]
+  estimatedCost   Decimal? @db.Decimal(10, 2)
+  actualCost      Decimal? @db.Decimal(10, 2)
+  scheduledDate   DateTime?
+  completedDate   DateTime?
+  tenantRating    Int?
+  tenantFeedback  String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  tenantId        String
+  tenant          User     @relation("TenantMaintenance", fields: [tenantId], references: [id])
+  assignedVendorId String?
+  assignedVendor  User?    @relation("AssignedVendor", fields: [assignedVendorId], references: [id])
+  unitId          String
+  unit            Unit     @relation(fields: [unitId], references: [id])
+  propertyId      String
+  property        Property @relation(fields: [propertyId], references: [id])
+  documents       Document[]
+
+  @@map("maintenance_requests")
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum MaintenanceStatus {
+  PENDING
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum MaintenanceCategory {
+  PLUMBING
+  ELECTRICAL
+  HVAC
+  APPLIANCE
+  STRUCTURAL
+  LANDSCAPING
+  CLEANING
+  OTHER
+}
+
+// Financial Management
+model Payment {
+  id              String   @id @default(cuid())
+  amount          Decimal  @db.Decimal(10, 2)
+  type            PaymentType
+  status          PaymentStatus @default(PENDING)
+  dueDate         DateTime?
+  paidDate        DateTime?
+  paymentMethod   PaymentMethod?
+  transactionId   String?
+  description     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  tenantId        String
+  tenant          User     @relation(fields: [tenantId], references: [id])
+  leaseId         String
+  lease           Lease    @relation(fields: [leaseId], references: [id])
+
+  @@map("payments")
+}
+
+enum PaymentType {
+  RENT
+  SECURITY_DEPOSIT
+  LATE_FEE
+  MAINTENANCE_FEE
+  UTILITY_BILL
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  DEBIT_CARD
+  BANK_TRANSFER
+  CASH
+  CHECK
+  ONLINE_PAYMENT
+}
+
+// Document Management
+model Document {
+  id              String   @id @default(cuid())
+  name            String
+  type            DocumentType
+  fileUrl         String
+  fileSize        Int
+  mimeType        String
+  description     String?
+  expiresAt       DateTime?
+  isPublic        Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  propertyId      String?
+  property        Property? @relation(fields: [propertyId], references: [id])
+  leaseId         String?
+  lease           Lease?   @relation(fields: [leaseId], references: [id])
+  maintenanceRequestId String?
+  maintenanceRequest MaintenanceRequest? @relation(fields: [maintenanceRequestId], references: [id])
+
+  @@map("documents")
+}
+
+enum DocumentType {
+  LEASE_AGREEMENT
+  ID_DOCUMENT
+  PROOF_OF_INCOME
+  BANK_STATEMENT
+  INSURANCE
+  MAINTENANCE_INVOICE
+  PAYMENT_RECEIPT
+  OTHER
+}
+
+// Communication
+model Message {
+  id              String   @id @default(cuid())
+  subject         String?
+  content         String
+  isRead          Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  senderId        String
+  sender          User     @relation("Sender", fields: [senderId], references: [id])
+  receiverId      String
+  receiver        User     @relation("Receiver", fields: [receiverId], references: [id])
+
+  @@map("messages")
+}
+
+// Audit Trail
+model AuditLog {
+  id              String   @id @default(cuid())
+  action          String
+  entityType      String
+  entityId        String
+  userId          String?
+  userEmail       String?
+  oldValues       Json?
+  newValues       Json?
+  ipAddress       String?
+  userAgent       String?
+  createdAt       DateTime @default(now())
+
+  @@map("audit_logs")
+}

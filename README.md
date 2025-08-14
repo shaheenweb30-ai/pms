@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # 🏠 Property Management System (PMS)
 
 A comprehensive web-based platform for managing property operations, tenant relationships, and maintenance workflows.
@@ -180,3 +181,6 @@ This project is licensed under the MIT License.
 **Built with ❤️ for modern property management**
 
 *Ready to revolutionize your property management workflow? Get started today!*
+=======
+# pms
+>>>>>>> 1eca4d455317109da591f93d95210a3eeb61499f
